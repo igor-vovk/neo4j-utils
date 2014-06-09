@@ -24,9 +24,8 @@ trait TransactionalTransformers {
   }
 
   implicit class InlineTransactionTransformer[A](t: Transactional[Transactional[A]]) {
-    def flatten: Transactional[A] = t.flatMap(a => a)
-
-    def extract = flatten
+    @deprecated("Use Transactional.flatten instead")
+    def extract = t.flatten
   }
 
 }
@@ -40,6 +39,8 @@ trait Transactional[A] {
   def map[B](f: A => B): Transactional[B] = transactional[B](f compose atomic)
 
   def flatMap[B](f: A => Transactional[B]): Transactional[B] = transactional(ds => f(atomic(ds)).atomic(ds))
+
+  def flatten[B](implicit ev: A <:< Transactional[B]): Transactional[B] = transactional(ds => ev(atomic(ds)).atomic(ds))
 
   def exec(implicit ds: DatabaseService): A = Tx(atomic(ds))(ds)
 }
