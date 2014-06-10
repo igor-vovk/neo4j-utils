@@ -1,7 +1,11 @@
 name := "neo4j-utils"
 
-version := "0.1.0"
+organization := "org.igorynia"
 
-libraryDependencies += "org.neo4j" % "neo4j" % "2.1.1"
+version := "0.1-SNAPSHOT"
+
+scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
+
+libraryDependencies += "org.neo4j" % "neo4j" % "2.1.1" % "provided"
 
 libraryDependencies += "org.neo4j" % "neo4j-kernel" % "2.1.1" % "test" classifier "tests" classifier ""
