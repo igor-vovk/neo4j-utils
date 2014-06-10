@@ -98,7 +98,7 @@ trait UnidirectionalRelationshipDal[StartEntity <: NodeEntity, EndEntity <: Node
     } yield relEntity
 
   def hydrateHavingAll(rel: Relationship, a: StartEntity, b: EndEntity): Transactional[Rel] =
-    transactional(ds => doHydrate(checkRelType(rel), a, b))
+    doHydrate(checkRelType(rel), a, b)
 
   def persist(entity: Rel): Transactional[Rel] = {
     val (start, end) = (entity.start, entity.end)
@@ -110,7 +110,7 @@ trait UnidirectionalRelationshipDal[StartEntity <: NodeEntity, EndEntity <: Node
         startNode.createRelationshipTo(endNode, RelationshipType)
       }
 
-    rel.flatMap(rel => transactional(doPersist(entity, rel)))
+    rel.flatMap(doPersist(entity, _))
   }
 
   private def entityNotPersisted =
@@ -128,9 +128,9 @@ trait UnidirectionalRelationshipDal[StartEntity <: NodeEntity, EndEntity <: Node
 
   def delete(entity: Rel): Transactional[Unit] = getRelationship(entity).map(_.foreach(_.delete()))
 
-  protected def doHydrate(rel: Relationship, first: StartEntity, second: EndEntity): Rel
+  protected def doHydrate(rel: Relationship, first: StartEntity, second: EndEntity): Transactional[Rel]
 
-  protected def doPersist(entity: Rel, rel: Relationship)(ds: DatabaseService): Rel
+  protected def doPersist(entity: Rel, rel: Relationship): Transactional[Rel]
 
 }
 
