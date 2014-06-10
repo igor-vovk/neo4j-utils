@@ -45,4 +45,4 @@ trait Transactional[A] {
   def exec(implicit ds: DatabaseService): A = Tx(atomic(ds))(ds)
 }
 
-private class TransactionalImpl[A](val atomic: DatabaseService => A) extends Transactional[A]
+class TransactionalImpl[A](val atomic: DatabaseService => A) extends Transactional[A]

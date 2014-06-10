@@ -40,7 +40,7 @@ trait EmbeddedGraphDatabaseServiceProvider extends GraphDatabaseServiceProvider 
 
 object SingletonProvider {
 
-  private[neo] var ds: Option[DatabaseService] = None
+  private[neo4j] var ds: Option[DatabaseService] = None
 
   def apply(neo4jStoreDir: String,
             configParams: Map[String, String],

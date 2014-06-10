@@ -33,7 +33,7 @@ trait Neo4jWrapper {
 
 object Neo4jWrapper extends Neo4jWrapper
 
-private[neo] class RichPropertyContainer(pc: PropertyContainer) extends scala.collection.mutable.Map[String, Any] {
+private[neo4j] class RichPropertyContainer(pc: PropertyContainer) extends scala.collection.mutable.Map[String, Any] {
 
   def get(key: String): Option[Any] = {
     if (pc.hasProperty(key)) Some(pc.getProperty(key))
@@ -55,7 +55,7 @@ private[neo] class RichPropertyContainer(pc: PropertyContainer) extends scala.co
   }
 }
 
-private[neo] class NodeRelationshipMethods(node: Node, rel: Relationship = null) {
+private[neo4j] class NodeRelationshipMethods(node: Node, rel: Relationship = null) {
 
   def -->(relType: RelationshipType) = new OutgoingRelationshipBuilder(node, relType)
 
@@ -69,7 +69,7 @@ private[neo] class NodeRelationshipMethods(node: Node, rel: Relationship = null)
 
 }
 
-private[neo] class OutgoingRelationshipBuilder(fromNode: Node, relType: RelationshipType) {
+private[neo4j] class OutgoingRelationshipBuilder(fromNode: Node, relType: RelationshipType) {
 
   def -->(toNode: Node) = {
     new NodeRelationshipMethods(toNode, fromNode.createRelationshipTo(toNode, relType))
@@ -81,7 +81,7 @@ private[neo] class OutgoingRelationshipBuilder(fromNode: Node, relType: Relation
 
 }
 
-private[neo] class IncomingRelationshipBuilder(toNode: Node, relType: RelationshipType) {
+private[neo4j] class IncomingRelationshipBuilder(toNode: Node, relType: RelationshipType) {
 
   def <--(fromNode: Node) = {
     new NodeRelationshipMethods(fromNode, fromNode.createRelationshipTo(toNode, relType))

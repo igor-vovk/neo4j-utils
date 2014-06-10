@@ -134,7 +134,7 @@ trait UnidirectionalRelationshipDal[StartEntity <: NodeEntity, EndEntity <: Node
 
 }
 
-trait HydrationException extends Exception
+abstract class HydrationException(message: String) extends Exception(message)
 
 class BadRelationshipTypeException(message: String) extends HydrationException(message)
 
