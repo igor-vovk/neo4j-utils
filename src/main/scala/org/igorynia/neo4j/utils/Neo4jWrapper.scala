@@ -3,17 +3,18 @@ package org.igorynia.neo4j.utils
 import java.util
 
 import scala.collection.JavaConverters._
-import scala.collection.convert.WrapAsScala._
 import scala.util.control.Exception
 
-import Transactional._
+import org.igorynia.neo4j.utils.Transactional._
 import org.neo4j.graphdb._
 import org.neo4j.graphdb.index.{Index, UniqueFactory}
 import org.neo4j.graphdb.index.UniqueFactory.UniqueNodeFactory
 
 trait Neo4jWrapper {
 
-  def createNode: Transactional[Node] = transactional(_.gds.createNode())
+  def createNode: Transactional[Node] = createNode()
+
+  def createNode(labels: Label*): Transactional[Node] = transactional(_.gds.createNode(labels: _*))
 
   val catchNotFound = Exception.catching(classOf[NotFoundException])
 
@@ -23,7 +24,7 @@ trait Neo4jWrapper {
 
   def buildUniqueFactory(index: Index[Node]): UniqueFactory[Node] = new UniqueNodeFactory(index) {
     def initialize(created: Node, properties: util.Map[String, AnyRef]) {
-      mapAsScalaMap(properties).foreach {
+      properties.asScala.foreach {
         case (key, value) => created.setProperty(key, value)
       }
     }
@@ -40,7 +41,7 @@ private[neo4j] class RichPropertyContainer(pc: PropertyContainer) extends scala.
     else None
   }
 
-  def iterator: Iterator[(String, Any)] = pc.getPropertyKeys.iterator.map {
+  def iterator: Iterator[(String, Any)] = pc.getPropertyKeys.asScala.iterator.map {
     case key => key -> pc.getProperty(key)
   }
 
