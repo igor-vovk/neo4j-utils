@@ -20,7 +20,15 @@ trait Neo4jWrapper {
 
   def getNodeById(id: Long): Transactional[Node] = transactional(_.gds.getNodeById(id))
 
+  def getNodeByIdO(id: Long): Transactional[Option[Node]] = transactional { ds =>
+    catchNotFound opt ds.gds.getNodeById(id)
+  }
+
   def getRelationshipById(id: Long): Transactional[Relationship] = transactional(_.gds.getRelationshipById(id))
+
+  def getRelationshipByIdO(id: Long): Transactional[Option[Relationship]] = transactional { ds =>
+    catchNotFound opt ds.gds.getRelationshipById(id)
+  }
 
   def buildUniqueFactory(index: Index[Node]): UniqueFactory[Node] = new UniqueNodeFactory(index) {
     def initialize(created: Node, properties: util.Map[String, AnyRef]) {
