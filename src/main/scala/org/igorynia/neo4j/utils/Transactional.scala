@@ -19,6 +19,13 @@ trait TransactionalTransformers {
     def extract: Transactional[Option[A]] = transactional(ds => op.map(_.exec(ds)))
   }
 
+  implicit class OptionConverter[A](op: Option[A]) {
+    def mkTransactional(orElse: => Transactional[A]) = op match {
+      case Some(v) => transactional(ds => v)
+      case None => orElse
+    }
+  }
+
   implicit class IterableTransformer[A](it: Iterable[Transactional[A]]) {
     def extract: Transactional[Iterable[A]] = transactional(ds => it.map(_.exec(ds)))
   }
