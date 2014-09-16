@@ -7,7 +7,11 @@ package org.igorynia.neo4j.utils
  */
 object Transactional extends TransactionalTransformers {
 
+  @inline
   def transactional[A](body: DatabaseService => A) = new TransactionalImpl(body)
+
+  @inline
+  def emptyTransactional[A](value: A) = new EmptyTransactionalImpl(value)
 
 }
 
@@ -20,8 +24,8 @@ trait TransactionalTransformers {
   }
 
   implicit class OptionConverter[A](op: Option[A]) {
-    def mkTransactional(orElse: => Transactional[A]) = op match {
-      case Some(v) => transactional(ds => v)
+    def mkTransactional(orElse: => Transactional[A]): Transactional[A] = op match {
+      case Some(v) => emptyTransactional(v)
       case None => orElse
     }
   }
@@ -35,9 +39,13 @@ trait TransactionalTransformers {
     def extract = t.flatten
   }
 
+  implicit class EmptyTransactionMaker[A](obj: Any) {
+    def asTransactional = emptyTransactional(obj)
+  }
+
 }
 
-trait Transactional[A] {
+trait Transactional[+A] {
 
   import Transactional._
 
@@ -49,7 +57,19 @@ trait Transactional[A] {
 
   def flatten[B](implicit ev: A <:< Transactional[B]): Transactional[B] = transactional(ds => ev(atomic(ds)).atomic(ds))
 
-  def exec(implicit ds: DatabaseService): A = Tx(atomic(ds))(ds)
+  def exec(implicit ds: DatabaseService): A
 }
 
-class TransactionalImpl[A](val atomic: DatabaseService => A) extends Transactional[A]
+class TransactionalImpl[+A](val atomic: DatabaseService => A) extends Transactional[A] {
+
+  override def exec(implicit ds: DatabaseService) = Tx(atomic(ds))(ds)
+
+}
+
+class EmptyTransactionalImpl[+A](a: A) extends Transactional[A] {
+
+  val atomic = (ds: DatabaseService) => a
+
+  override def exec(implicit ds: DatabaseService) = a
+
+}
