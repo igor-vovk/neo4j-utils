@@ -2,7 +2,7 @@ name := "neo4j-utils"
 
 organization := "org.igorynia"
 
-version := "0.1-SNAPSHOT"
+version := "0.2-SNAPSHOT"
 
 scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
 
