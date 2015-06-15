@@ -5,35 +5,44 @@ import java.util
 import scala.collection.JavaConverters._
 import scala.util.control.Exception
 
-import org.igorynia.neo4j.utils.Transactional._
 import org.neo4j.graphdb._
 import org.neo4j.graphdb.index.{Index, UniqueFactory}
 import org.neo4j.graphdb.index.UniqueFactory.UniqueNodeFactory
 
 trait Neo4jWrapper {
 
-  def createNode: Transactional[Node] = createNode()
+  def createNode(implicit ctx: TransactionContext): Node = {
+    createNode()(ctx)
+  }
 
-  def createNode(labels: Label*): Transactional[Node] = transactional(_.gds.createNode(labels: _*))
+  def createNode(labels: Label*)(implicit ctx: TransactionContext): Node = {
+    ctx.gds.createNode(labels: _*)
+  }
 
   val catchNotFound = Exception.catching(classOf[NotFoundException])
 
-  def getNodeById(id: Long): Transactional[Node] = transactional(_.gds.getNodeById(id))
-
-  def getNodeByIdO(id: Long): Transactional[Option[Node]] = transactional { ds =>
-    catchNotFound opt ds.gds.getNodeById(id)
+  def getNodeById(id: Long)(implicit ctx: TransactionContext): Node = {
+    ctx.gds.getNodeById(id)
   }
 
-  def getRelationshipById(id: Long): Transactional[Relationship] = transactional(_.gds.getRelationshipById(id))
-
-  def getRelationshipByIdO(id: Long): Transactional[Option[Relationship]] = transactional { ds =>
-    catchNotFound opt ds.gds.getRelationshipById(id)
+  def getNodeByIdO(id: Long)(implicit ctx: TransactionContext): Option[Node] = {
+    catchNotFound opt ctx.gds.getNodeById(id)
   }
 
-  def buildUniqueFactory(index: Index[Node]): UniqueFactory[Node] = new UniqueNodeFactory(index) {
-    def initialize(created: Node, properties: util.Map[String, AnyRef]) {
-      properties.asScala.foreach {
-        case (key, value) => created.setProperty(key, value)
+  def getRelationshipById(id: Long)(implicit ctx: TransactionContext): Relationship = {
+    ctx.gds.getRelationshipById(id)
+  }
+
+  def getRelationshipByIdO(id: Long)(implicit ctx: TransactionContext): Option[Relationship] = {
+    catchNotFound opt ctx.gds.getRelationshipById(id)
+  }
+
+  def buildUniqueFactory(index: Index[Node]): UniqueFactory[Node] = {
+    new UniqueNodeFactory(index) {
+      def initialize(created: Node, properties: util.Map[String, AnyRef]) {
+        properties.asScala.foreach {
+          case (key, value) => created.setProperty(key, value)
+        }
       }
     }
   }
@@ -45,12 +54,17 @@ object Neo4jWrapper extends Neo4jWrapper
 private[neo4j] class RichPropertyContainer(pc: PropertyContainer) extends scala.collection.mutable.Map[String, Any] {
 
   def get(key: String): Option[Any] = {
-    if (pc.hasProperty(key)) Some(pc.getProperty(key))
-    else None
+    if (pc.hasProperty(key)) {
+      Some(pc.getProperty(key))
+    } else {
+      None
+    }
   }
 
-  def iterator: Iterator[(String, Any)] = pc.getPropertyKeys.asScala.iterator.map {
-    case key => key -> pc.getProperty(key)
+  def iterator: Iterator[(String, Any)] = {
+    pc.getPropertyKeys.asScala.iterator.map {
+      case key => key -> pc.getProperty(key)
+    }
   }
 
   def +=(kv: (String, Any)) = {
@@ -74,7 +88,9 @@ private[neo4j] class NodeRelationshipMethods(node: Node, rel: Relationship = nul
    * use this to get the created relationship object
    * <pre>start --> "KNOWS" --> end <()</pre>
    */
-  def <() = rel
+  def <() = {
+    rel
+  }
 
 }
 

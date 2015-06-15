@@ -2,7 +2,6 @@ package org.igorynia.neo4j.utils
 
 import scala.collection.JavaConverters._
 
-import org.igorynia.neo4j.utils.Transactional._
 import org.neo4j.graphdb._
 
 trait NodeDal[T <: NodeEntity] extends PropertyContainerAccess {
@@ -11,37 +10,40 @@ trait NodeDal[T <: NodeEntity] extends PropertyContainerAccess {
 
   val NodeLabel: Label
 
-  def hydrate(node: Node): Transactional[T] = for {
-    checkedNode <- transactional(ds => checkNodeType(node, NodeLabel))
-    hydrated <- doHydrate(checkedNode)
-  } yield hydrated
-
-  def persist(entity: T): Transactional[T] = for {
-    node <- getOrCreateNode(entity.id, NodeLabel)
-    persisted <- doPersist(entity, node)
-  } yield persisted
-
-  private def getOrCreateNode(maybeId: Option[Long], label: Label): Transactional[Node] = maybeId match {
-    case Some(id) => getNodeById(id).map(checkNodeType(_, label))
-    case None => createNodeWithLabel(label)
+  def hydrate(node: Node)(implicit ctx: TransactionContext): T = {
+    doHydrate(checkNodeType(node, NodeLabel))
   }
 
-  private def createNodeWithLabel(label: Label): Transactional[Node] = createNode.map { node =>
+  def persist(entity: T)(implicit ctx: TransactionContext) = {
+    doPersist(entity, getOrCreateNode(entity.id, NodeLabel))
+  }
+
+  private def getOrCreateNode(maybeId: Option[Long], label: Label)(implicit ctx: TransactionContext): Node = {
+    maybeId match {
+      case Some(id) => checkNodeType(getNodeById(id), label)
+      case None => createNodeWithLabel(label)
+    }
+  }
+
+  private def createNodeWithLabel(label: Label)(implicit ctx: TransactionContext): Node = {
+    val node = createNode()
     node.addLabel(NodeLabel)
 
     node
   }
 
-  def findById(id: Long): Transactional[Option[T]] =
-    (catchNotFound opt getNodeById(id).flatMap(hydrate)).extract
+  def findById(id: Long)(implicit ctx: TransactionContext): Option[T] = {
+    catchNotFound opt hydrate(getNodeById(id))
+  }
 
-  def extractNode(entity: Entity): Transactional[Option[Node]] = entity.id.map(getNodeById).extract
+  def extractNode(entity: Entity)(implicit ctx: TransactionContext): Option[Node] = entity.id.map(getNodeById)
 
-  def delete(entity: T): Transactional[Unit] =
-    extractNode(entity).map(_.foreach(node => {
+  def delete(entity: T)(implicit ctx: TransactionContext): Unit = {
+    extractNode(entity).foreach(node => {
       node.getRelationships.asScala.foreach(_.delete())
       node.delete()
-    }))
+    })
+  }
 
   private def checkNodeType(node: Node, label: Label): Node = {
     require(
@@ -52,9 +54,9 @@ trait NodeDal[T <: NodeEntity] extends PropertyContainerAccess {
     node
   }
 
-  protected def doHydrate(node: Node): Transactional[T]
+  protected def doHydrate(node: Node): T
 
-  protected def doPersist(entity: T, node: Node): Transactional[T]
+  protected def doPersist(entity: T, node: Node): T
 
 }
 
@@ -63,58 +65,59 @@ trait UnidirectionalRelationshipDal[StartEntity <: NodeEntity, EndEntity <: Node
 
   val RelationshipType: RelationshipType
 
-  def findById(id: Long)(implicit aOp: NodeDal[StartEntity], bOp: NodeDal[EndEntity]) =
-    catchNotFound.opt(getRelationshipById(id).flatMap(hydrate)).extract
+  def findById(id: Long)(implicit ctx: TransactionContext, aOp: NodeDal[StartEntity], bOp: NodeDal[EndEntity]) = {
+    catchNotFound.opt(hydrate(getRelationshipById(id)))
+  }
 
-  def find(start: StartEntity, end: EndEntity): Transactional[Option[Rel]] = for {
-    startNodeO <- start.id.map(getNodeById).extract
-    endNodeO <- end.id.map(getNodeById).extract
-    relEntity <- (for {
+  def find(start: StartEntity, end: EndEntity)(implicit ctx: TransactionContext): Option[Rel] = {
+    val startNodeO = start.id.map(getNodeById)
+    val endNodeO = end.id.map(getNodeById)
+
+    for {
       startNode <- startNodeO
       endNode <- endNodeO
       rel <- startNode.getRelationships(Direction.OUTGOING, RelationshipType).asScala.find(_.getEndNode == endNode)
-    } yield hydrateHavingAll(rel, start, end)).extract
-  } yield relEntity
-
-  def getRelationship(entity: Entity): Transactional[Option[Relationship]] = entity.id.map(getRelationshipById).extract
-
-  def hydrate(rel: Relationship)(implicit aOp: NodeDal[StartEntity], bOp: NodeDal[EndEntity]): Transactional[Rel] =
-    for {
-      a <- aOp.hydrate(rel.getStartNode)
-      b <- bOp.hydrate(rel.getEndNode)
-      relEntity <- hydrateHavingAll(rel, a, b)
-    } yield relEntity
-
-  def hydrateHavingStartEntity(rel: Relationship, a: StartEntity)(implicit bOp: NodeDal[EndEntity]): Transactional[Rel] =
-    for {
-      b <- bOp.hydrate(rel.getEndNode)
-      relEntity <- hydrateHavingAll(rel, a, b)
-    } yield relEntity
-
-  def hydrateHavingEndEntity(rel: Relationship, b: EndEntity)(implicit aOp: NodeDal[StartEntity]): Transactional[Rel] =
-    for {
-      a <- aOp.hydrate(rel.getStartNode)
-      relEntity <- hydrateHavingAll(rel, a, b)
-    } yield relEntity
-
-  def hydrateHavingAll(rel: Relationship, a: StartEntity, b: EndEntity): Transactional[Rel] =
-    doHydrate(checkRelType(rel), a, b)
-
-  def persist(entity: Rel): Transactional[Rel] = {
-    val (start, end) = (entity.start, entity.end)
-
-    val rel = for {
-      startNode <- getNodeById(start.id getOrElse entityNotPersisted)
-      endNode <- getNodeById(end.id getOrElse entityNotPersisted)
-    } yield startNode.getRelationships(Direction.OUTGOING, RelationshipType).asScala.find(_.getEndNode == endNode).getOrElse {
-        startNode.createRelationshipTo(endNode, RelationshipType)
-      }
-
-    rel.flatMap(doPersist(entity, _))
+    } yield hydrateHavingAll(rel, start, end)
   }
 
-  private def entityNotPersisted =
+  def getRelationship(entity: Entity)(implicit ctx: TransactionContext): Option[Relationship] = {
+    entity.id.map(getRelationshipById)
+  }
+
+  def hydrate(rel: Relationship)(implicit ctx: TransactionContext, aOp: NodeDal[StartEntity], bOp: NodeDal[EndEntity]): Rel = {
+    hydrateHavingAll(rel, aOp.hydrate(rel.getStartNode), bOp.hydrate(rel.getEndNode))
+  }
+
+  def hydrateHavingStartEntity(rel: Relationship, a: StartEntity)(implicit ctx: TransactionContext, bOp: NodeDal[EndEntity]): Rel = {
+    hydrateHavingAll(rel, a, bOp.hydrate(rel.getEndNode))
+  }
+
+  def hydrateHavingEndEntity(rel: Relationship, b: EndEntity)(implicit ctx: TransactionContext, aOp: NodeDal[StartEntity]): Rel = {
+    hydrateHavingAll(rel, aOp.hydrate(rel.getStartNode), b)
+  }
+
+  def hydrateHavingAll(rel: Relationship, a: StartEntity, b: EndEntity)(implicit ctx: TransactionContext): Rel = {
+    doHydrate(checkRelType(rel), a, b)
+  }
+
+  def persist(entity: Rel)(implicit ctx: TransactionContext): Rel = {
+    val (start, end) = (entity.start, entity.end)
+
+    val startNode = getNodeById(start.id getOrElse entityNotPersisted)
+    val endNode = getNodeById(end.id getOrElse entityNotPersisted)
+
+    val rel = startNode
+      .getRelationships(Direction.OUTGOING, RelationshipType)
+      .asScala
+      .find(_.getEndNode == endNode)
+      .getOrElse(startNode.createRelationshipTo(endNode, RelationshipType))
+
+    doPersist(entity, rel)
+  }
+
+  private def entityNotPersisted = {
     throw new PersistenceException("Can't persist relationship, while at least one of the nodes are not persisted")
+  }
 
   private def checkRelType(rel: Relationship) = {
     if (rel.getType.name != RelationshipType.name()) {
@@ -126,11 +129,13 @@ trait UnidirectionalRelationshipDal[StartEntity <: NodeEntity, EndEntity <: Node
     rel
   }
 
-  def delete(entity: Rel): Transactional[Unit] = getRelationship(entity).map(_.foreach(_.delete()))
+  def delete(entity: Rel)(implicit ctx: TransactionContext): Unit = {
+    getRelationship(entity).foreach(_.delete())
+  }
 
-  protected def doHydrate(rel: Relationship, first: StartEntity, second: EndEntity): Transactional[Rel]
+  protected def doHydrate(rel: Relationship, first: StartEntity, second: EndEntity)(implicit ctx: TransactionContext): Rel
 
-  protected def doPersist(entity: Rel, rel: Relationship): Transactional[Rel]
+  protected def doPersist(entity: Rel, rel: Relationship)(implicit ctx: TransactionContext): Rel
 
 }
 

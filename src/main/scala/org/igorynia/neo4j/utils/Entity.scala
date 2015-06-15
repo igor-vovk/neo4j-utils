@@ -6,7 +6,7 @@ trait Entity {
 
   def id: Option[Long]
 
-  def same(other: Entity) = id.exists(other.id.getOrElse(-1L) ==)
+  def same(other: Entity) = id.contains(other.id.getOrElse(-1L))
 
 }
 

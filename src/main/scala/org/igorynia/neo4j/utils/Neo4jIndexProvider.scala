@@ -3,7 +3,7 @@ package org.igorynia.neo4j.utils
 import scala.collection.mutable
 import org.neo4j.graphdb.{PropertyContainer, Node}
 import org.neo4j.graphdb.index.{RelationshipIndex, Index}
-import scala.collection.convert.WrapAsJava._
+import scala.collection.JavaConverters._
 import scala.language.implicitConversions
 
 /**
@@ -30,12 +30,12 @@ trait Neo4jIndexProvider {
 
   private def initNodeIndex(indexName: String, config: IndexCustomConfig): (String, Index[Node]) = {
     val m = getIndexManager
-    indexName -> config.map(mapAsJavaMap).fold(m.forNodes(indexName))(m.forNodes(indexName, _))
+    indexName -> config.map(_.asJava).fold(m.forNodes(indexName))(m.forNodes(indexName, _))
   }
 
   private def initRelationshipIndex(indexName: String, config: IndexCustomConfig): (String, RelationshipIndex) = {
     val m = getIndexManager
-    indexName -> config.map(mapAsJavaMap).fold(m.forRelationships(indexName))(m.forRelationships(indexName, _))
+    indexName -> config.map(_.asJava).fold(m.forRelationships(indexName))(m.forRelationships(indexName, _))
   }
 
   def recreateNodeIndex(name: String) {
@@ -49,12 +49,12 @@ trait Neo4jIndexProvider {
   }
 
   class IndexWrapper[T <: PropertyContainer](i: Index[T]) {
-    def +=(t: T)(kv: Pair[String, Any]) = {
+    def +=(t: T)(kv: (String, Any)) = {
       i.add(t, kv._1, kv._2)
       t
     }
 
-    def ++=(t: T)(kv: Seq[Pair[String, Any]]) = kv.foreach(+=(t))
+    def ++=(t: T)(kv: Seq[(String, Any)]) = kv.foreach(+=(t))
 
     def -=(t: T, k: String, v: Any) = i.remove(t, k, v)
 
@@ -63,7 +63,7 @@ trait Neo4jIndexProvider {
     def -=(t: T) = i.remove(t)
   }
 
-  implicit def indexToRichIndex[T <: PropertyContainer](i: Index[T]) = new IndexWrapper[T](i)
+  implicit def indexToRichIndex[T <: PropertyContainer](i: Index[T]): IndexWrapper[T] = new IndexWrapper[T](i)
 
 }
 
